@@ -5,604 +5,604 @@
 # Wrapper around all escape sequences used by pfetch to allow for
 # greater control over which sequences are used (if any at all).
 esc() {
-    case $1 in
-        CUU) e="${esc_c}[${2}A" ;; # cursor up
-        CUD) e="${esc_c}[${2}B" ;; # cursor down
-        CUF) e="${esc_c}[${2}C" ;; # cursor right
-        CUB) e="${esc_c}[${2}D" ;; # cursor left
+	case $1 in
+		CUU) e="${esc_c}[${2}A" ;; # cursor up
+		CUD) e="${esc_c}[${2}B" ;; # cursor down
+		CUF) e="${esc_c}[${2}C" ;; # cursor right
+		CUB) e="${esc_c}[${2}D" ;; # cursor left
 
-        # text formatting
-        SGR)
-            case ${PF_COLOR:=1} in
-                (1)
-                    e="${esc_c}[${2}m"
-                ;;
+		# text formatting
+		SGR)
+			case ${PF_COLOR:=1} in
+				(1)
+					e="${esc_c}[${2}m"
+				;;
 
-                (0)
-                    # colors disabled
-                    e=
-                ;;
-            esac
-        ;;
+				(0)
+					# colors disabled
+					e=
+				;;
+			esac
+		;;
 
-        # line wrap
-        DECAWM)
-            case $TERM in
-                (dumb | minix | cons25)
-                    # not supported
-                    e=
-                ;;
+		# line wrap
+		DECAWM)
+			case $TERM in
+				(dumb | minix | cons25)
+					# not supported
+					e=
+				;;
 
-                (*)
-                    e="${esc_c}[?7${2}"
-                ;;
-            esac
-        ;;
-    esac
+				(*)
+					e="${esc_c}[?7${2}"
+				;;
+			esac
+		;;
+	esac
 }
 
 # Print a sequence to the terminal.
 esc_p() {
-    esc "$@"
-    printf '%s' "$e"
+	esc "$@"
+	printf '%s' "$e"
 }
 
 # This is just a simple wrapper around 'command -v' to avoid
 # spamming '>/dev/null' throughout this function. This also guards
 # against aliases and functions.
 has() {
-    _cmd=$(command -v "$1") 2>/dev/null || return 1
-    [ -x "$_cmd" ] || return 1
+	_cmd=$(command -v "$1") 2>/dev/null || return 1
+	[ -x "$_cmd" ] || return 1
 }
 
 log() {
-    # End here if no data was found.
-    [ "$2" ] || return
+	# End here if no data was found.
+	[ "$2" ] || return
 
-    # Store the value of '$1' as we reset the argument list below.
-    name=$1
+	# Store the value of '$1' as we reset the argument list below.
+	name=$1
 
-    # Use 'set --' as a means of stripping all leading and trailing
-    # white-space from the info string. This also normalizes all
-    # white-space inside of the string.
-    #
-    # Disable the shellcheck warning for word-splitting
-    # as it's safe and intended ('set -f' disables globbing).
-    # shellcheck disable=2046,2086
-    {
-        set -f
-        set +f -- $2
-        info=$*
-    }
+	# Use 'set --' as a means of stripping all leading and trailing
+	# white-space from the info string. This also normalizes all
+	# white-space inside of the string.
+	#
+	# Disable the shellcheck warning for word-splitting
+	# as it's safe and intended ('set -f' disables globbing).
+	# shellcheck disable=2046,2086
+	{
+		set -f
+		set +f -- $2
+		info=$*
+	}
 
-    # Print the info name and color the text.
-    esc_p SGR "3${PF_COL1-4}";
-    esc_p SGR 1
-    printf '%s' "$name"
-    esc_p SGR 0
+	# Print the info name and color the text.
+	esc_p SGR "3${PF_COL1-4}";
+	esc_p SGR 1
+	printf '%s' "$name"
+	esc_p SGR 0
 
-    # Print the info name and info data separator.
-    printf %s "$PF_SEP"
+	# Print the info name and info data separator.
+	printf %s "$PF_SEP"
 
-    # Move the cursor backward the length of the *current* info name and
-    # then move it forwards the length of the *longest* info name. This
-    # aligns each info data line.
-    esc_p CUB "${#name}"
-    esc_p CUF "${PF_ALIGN:-$info_length}"
+	# Move the cursor backward the length of the *current* info name and
+	# then move it forwards the length of the *longest* info name. This
+	# aligns each info data line.
+	esc_p CUB "${#name}"
+	esc_p CUF "${PF_ALIGN:-$info_length}"
 
-    # Print the info data, color it and strip all leading whitespace
-    # from the string.
-    esc_p SGR "3${PF_COL2-7}"
-    printf '%s' "$info"
-    esc_p SGR 0
-    printf '\n'
+	# Print the info data, color it and strip all leading whitespace
+	# from the string.
+	esc_p SGR "3${PF_COL2-7}"
+	printf '%s' "$info"
+	esc_p SGR 0
+	printf '\n'
 
-    # Keep track of the number of times 'log()' has been run.
-    info_height=$((${info_height:-0} + 1))
+	# Keep track of the number of times 'log()' has been run.
+	info_height=$((${info_height:-0} + 1))
 }
 
 get_os() {
-    case $os in
-        (Linux*)
-            if has lsb_release; then
-                distro=$(lsb_release -sd)
-            else
-                while IFS='=' read -r key val; do
-                    case $key in
-                        (PRETTY_NAME)
-                            distro=$val
-                        ;;
-                    esac
-                done < /etc/os-release
-            fi
+	case $os in
+		(Linux*)
+			if has lsb_release; then
+				distro=$(lsb_release -sd)
+			else
+				while IFS='=' read -r key val; do
+					case $key in
+						(PRETTY_NAME)
+							distro=$val
+						;;
+					esac
+				done < /etc/os-release
+			fi
 
-            # 'os-release' and 'lsb_release' sometimes add quotes
-            # around the distribution name, strip them.
-            distro=${distro##[\"\']}
-            distro=${distro%%[\"\']}
+			# 'os-release' and 'lsb_release' sometimes add quotes
+			# around the distribution name, strip them.
+			distro=${distro##[\"\']}
+			distro=${distro%%[\"\']}
 
-            # Special cases for (independent) distributions which
-            # don't follow any os-release/lsb standards whatsoever.
-            has crux && distro=$(crux)
-            has guix && distro='Guix System'
+			# Special cases for (independent) distributions which
+			# don't follow any os-release/lsb standards whatsoever.
+			has crux && distro=$(crux)
+			has guix && distro='Guix System'
 
-            # Check to see if we're running Bedrock Linux which is
-            # very unique. This simply checks to see if the user's
-            # PATH contains a Bedrock specific value.
-            case $PATH in
-                (*/bedrock/cross/*)
-                    distro='Bedrock Linux'
-                ;;
-            esac
-        ;;
+			# Check to see if we're running Bedrock Linux which is
+			# very unique. This simply checks to see if the user's
+			# PATH contains a Bedrock specific value.
+			case $PATH in
+				(*/bedrock/cross/*)
+					distro='Bedrock Linux'
+				;;
+			esac
+		;;
 
-        (Minix|DragonFly)
-            distro="$os $kernel"
+		(Minix|DragonFly)
+			distro="$os $kernel"
 
-            # Minix and DragonFly don't support the escape
-            # sequences used, clear the exit trap.
-            trap '' EXIT
-        ;;
+			# Minix and DragonFly don't support the escape
+			# sequences used, clear the exit trap.
+			trap '' EXIT
+		;;
 
-        (OpenBSD*)
-            # Show the OpenBSD version type (current if present).
-            # kern.version=OpenBSD 6.6-current (GENERIC.MP) ...
-            IFS=' =' read -r _ distro openbsd_ver _ <<-EOF
+		(OpenBSD*)
+			# Show the OpenBSD version type (current if present).
+			# kern.version=OpenBSD 6.6-current (GENERIC.MP) ...
+			IFS=' =' read -r _ distro openbsd_ver _ <<-EOF
 				$(sysctl kern.version)
 			EOF
 
-            distro="$distro $openbsd_ver"
-        ;;
+			distro="$distro $openbsd_ver"
+		;;
 
-        FreeBSD)
-            distro="$os $(freebsd-version)"
-        ;;
+		FreeBSD)
+			distro="$os $(freebsd-version)"
+		;;
 
-        (*)
-            # Catch all to ensure '$distro' is never blank.
-            # This also handles the BSDs.
-            distro="$os $kernel"
-        ;;
-    esac
+		(*)
+			# Catch all to ensure '$distro' is never blank.
+			# This also handles the BSDs.
+			distro="$os $kernel"
+		;;
+	esac
 
 	log os "$distro" >&6
 }
 
 get_kernel() {
-    case $os in
-        # Don't print kernel when in name
-        (*BSD*|Minix)
-            return
-        ;;
-    esac
+	case $os in
+		# Don't print kernel when in name
+		(*BSD*|Minix)
+			return
+		;;
+	esac
 
-    # '$kernel' is the cached output of 'uname -r'.
-    log kernel "$kernel" >&6
+	# '$kernel' is the cached output of 'uname -r'.
+	log kernel "$kernel" >&6
 }
 
 get_host() {
-    case $os in
-        (Linux*)
-            # Despite what these files are called, version doesn't
-            # always contain the version nor does name always contain
-            # the name.
-            read -r name    < /sys/devices/virtual/dmi/id/product_name
-            read -r version < /sys/devices/virtual/dmi/id/product_version
-            read -r model   < /sys/firmware/devicetree/base/model
+	case $os in
+		(Linux*)
+			# Despite what these files are called, version doesn't
+			# always contain the version nor does name always contain
+			# the name.
+			read -r name	< /sys/devices/virtual/dmi/id/product_name
+			read -r version < /sys/devices/virtual/dmi/id/product_version
+			read -r model   < /sys/firmware/devicetree/base/model
 
-            host="$name $version $model"
-        ;;
+			host="$name $version $model"
+		;;
 
-        (FreeBSD* | DragonFly*)
-            host=$(sysctl -n hw.model)
-        ;;
+		(FreeBSD* | DragonFly*)
+			host=$(sysctl -n hw.model)
+		;;
 
-        (OpenBSD*)
-            host=$(sysctl -n hw.version)
-        ;;
+		(OpenBSD*)
+			host=$(sysctl -n hw.version)
+		;;
 
-        (*BSD* | Minix)
-            host=$(sysctl -n hw.vendor hw.product)
-        ;;
-    esac
+		(*BSD* | Minix)
+			host=$(sysctl -n hw.vendor hw.product)
+		;;
+	esac
 
-    # Turn the host string into an argument list so we can iterate
-    # over it and remove OEM strings and other information which
-    # shouldn't be displayed.
-    #
-    # Disable the shellcheck warning for word-splitting
-    # as it's safe and intended ('set -f' disables globbing).
-    # shellcheck disable=2046,2086
-    {
-        set -f
-        set +f -- $host
-        host=
-    }
+	# Turn the host string into an argument list so we can iterate
+	# over it and remove OEM strings and other information which
+	# shouldn't be displayed.
+	#
+	# Disable the shellcheck warning for word-splitting
+	# as it's safe and intended ('set -f' disables globbing).
+	# shellcheck disable=2046,2086
+	{
+		set -f
+		set +f -- $host
+		host=
+	}
 
-    # Iterate over the host string word by word as a means of stripping
-    # unwanted and OEM information from the string as a whole.
-    #
-    # This could have been implemented using a long 'sed' command with
-    # a list of word replacements, however I want to show that something
-    # like this is possible in pure sh.
-    #
-    # This string reconstruction is needed as some OEMs either leave the
-    # identification information as "To be filled by OEM", "Default",
-    # "undefined" etc and we shouldn't print this to the screen.
-    for word do
-        # This works by reconstructing the string by excluding words
-        # found in the "blacklist" below. Only non-matches are appended
-        # to the final host string.
-        case $word in
-           (To      | [Bb]e      | [Ff]illed | [Bb]y  | O.E.M.  | OEM  |\
-            Not     | Applicable | Specified | System | Product | Name |\
-            Version | Undefined  | Default   | string | INVALID | �    | os |\
-            Type1ProductConfigId )
-                continue
-            ;;
-        esac
+	# Iterate over the host string word by word as a means of stripping
+	# unwanted and OEM information from the string as a whole.
+	#
+	# This could have been implemented using a long 'sed' command with
+	# a list of word replacements, however I want to show that something
+	# like this is possible in pure sh.
+	#
+	# This string reconstruction is needed as some OEMs either leave the
+	# identification information as "To be filled by OEM", "Default",
+	# "undefined" etc and we shouldn't print this to the screen.
+	for word do
+		# This works by reconstructing the string by excluding words
+		# found in the "blacklist" below. Only non-matches are appended
+		# to the final host string.
+		case $word in
+		   (To	  | [Bb]e	  | [Ff]illed | [Bb]y  | O.E.M.  | OEM  |\
+			Not	 | Applicable | Specified | System | Product | Name |\
+			Version | Undefined  | Default   | string | INVALID | �	| os |\
+			Type1ProductConfigId )
+				continue
+			;;
+		esac
 
-        host="$host$word "
-    done
+		host="$host$word "
+	done
 
-    # '$arch' is the cached output from 'uname -m'.
-    log host "${host:-$arch}" >&6
+	# '$arch' is the cached output from 'uname -m'.
+	log host "${host:-$arch}" >&6
 }
 
 get_uptime() {
-    # Uptime works by retrieving the data in total seconds and then
-    # converting that data into days, hours and minutes using simple
-    # math.
-    case $os in
-        (Linux* | Minix*)
-            IFS=. read -r s _ < /proc/uptime
-        ;;
+	# Uptime works by retrieving the data in total seconds and then
+	# converting that data into days, hours and minutes using simple
+	# math.
+	case $os in
+		(Linux* | Minix*)
+			IFS=. read -r s _ < /proc/uptime
+		;;
 
-        *BSD* | DragonFly*)
-            s=$(sysctl -n kern.boottime)
+		*BSD* | DragonFly*)
+			s=$(sysctl -n kern.boottime)
 
-            # Extract the uptime in seconds from the following output:
-            # [...] { sec = 1271934886, usec = 667779 } Thu Apr 22 12:14:46 2010
-            s=${s#*=}
-            s=${s%,*}
+			# Extract the uptime in seconds from the following output:
+			# [...] { sec = 1271934886, usec = 667779 } Thu Apr 22 12:14:46 2010
+			s=${s#*=}
+			s=${s%,*}
 
-            # The uptime format from 'sysctl' needs to be subtracted from
-            # the current time in seconds.
-            s=$(($(date +%s) - s))
-        ;;
-    esac
+			# The uptime format from 'sysctl' needs to be subtracted from
+			# the current time in seconds.
+			s=$(($(date +%s) - s))
+		;;
+	esac
 
-    # Convert the uptime from seconds into days, hours and minutes.
-    d=$((s / 60 / 60 / 24))
-    h=$((s / 60 / 60 % 24))
-    m=$((s / 60 % 60))
+	# Convert the uptime from seconds into days, hours and minutes.
+	d=$((s / 60 / 60 / 24))
+	h=$((s / 60 / 60 % 24))
+	m=$((s / 60 % 60))
 
-    # Only append days, hours and minutes if they're non-zero.
-    case "$d" in ([!0]*) uptime="${uptime}${d}d "; esac
-    case "$h" in ([!0]*) uptime="${uptime}${h}h "; esac
-    case "$m" in ([!0]*) uptime="${uptime}${m}m "; esac
+	# Only append days, hours and minutes if they're non-zero.
+	case "$d" in ([!0]*) uptime="${uptime}${d}d "; esac
+	case "$h" in ([!0]*) uptime="${uptime}${h}h "; esac
+	case "$m" in ([!0]*) uptime="${uptime}${m}m "; esac
 
-    log uptime "${uptime:-0m}" >&6
+	log uptime "${uptime:-0m}" >&6
 }
 
 get_pkgs() {
-    # This works by first checking for which package managers are
-    # installed and finally by printing each package manager's
-    # package list with each package one per line.
-    #
-    # The output from this is then piped to 'wc -l' to count each
-    # line, giving us the total package count of whatever package
-    # managers are installed.
-    #
-    # Backticks are *required* here as '/bin/sh' on macOS is
-    # 'bash 3.2' and it can't handle the following:
-    #
-    # var=$(
-    #    code here
-    # )
-    #
-    # shellcheck disable=2006
-    packages=`
-        case $os in
-            (Linux*)
-                # Commands which print packages one per line.
-                has bonsai     && bonsai list
-                has crux       && pkginfo -i
-                has pacman-key && pacman -Qq
-                has dpkg       && dpkg-query -f '.\n' -W
-                has rpm        && rpm -qa
-                has xbps-query && xbps-query -l
-                has apk        && apk info
-                has guix       && guix package --list-installed
-                has opkg       && opkg list-installed
+	# This works by first checking for which package managers are
+	# installed and finally by printing each package manager's
+	# package list with each package one per line.
+	#
+	# The output from this is then piped to 'wc -l' to count each
+	# line, giving us the total package count of whatever package
+	# managers are installed.
+	#
+	# Backticks are *required* here as '/bin/sh' on macOS is
+	# 'bash 3.2' and it can't handle the following:
+	#
+	# var=$(
+	#	code here
+	# )
+	#
+	# shellcheck disable=2006
+	packages=`
+		case $os in
+			(Linux*)
+				# Commands which print packages one per line.
+				has bonsai	 && bonsai list
+				has crux	   && pkginfo -i
+				has pacman-key && pacman -Qq
+				has dpkg	   && dpkg-query -f '.\n' -W
+				has rpm		&& rpm -qa
+				has xbps-query && xbps-query -l
+				has apk		&& apk info
+				has guix	   && guix package --list-installed
+				has opkg	   && opkg list-installed
 
-                # Directories containing packages.
-                has kiss       && printf '%s\n' /var/db/kiss/installed/*/
-                has cpt-list   && printf '%s\n' /var/db/cpt/installed/*/
-                has brew       && printf '%s\n' "$(brew --cellar)/"*
-                has emerge     && printf '%s\n' /var/db/pkg/*/*/
-                has pkgtool    && printf '%s\n' /var/log/packages/*
-                has eopkg      && printf '%s\n' /var/lib/eopkg/package/*
+				# Directories containing packages.
+				has kiss	   && printf '%s\n' /var/db/kiss/installed/*/
+				has cpt-list   && printf '%s\n' /var/db/cpt/installed/*/
+				has brew	   && printf '%s\n' "$(brew --cellar)/"*
+				has emerge	 && printf '%s\n' /var/db/pkg/*/*/
+				has pkgtool	&& printf '%s\n' /var/log/packages/*
+				has eopkg	  && printf '%s\n' /var/lib/eopkg/package/*
 
-                # 'nix' requires two commands.
-                has nix-store  && {
-                    nix-store -q --requisites /run/current-system/sw
-                    nix-store -q --requisites ~/.nix-profile
-                }
-            ;;
+				# 'nix' requires two commands.
+				has nix-store  && {
+					nix-store -q --requisites /run/current-system/sw
+					nix-store -q --requisites ~/.nix-profile
+				}
+			;;
 
-            (FreeBSD*|DragonFly*)
-                pkg info
-            ;;
+			(FreeBSD*|DragonFly*)
+				pkg info
+			;;
 
-            (OpenBSD*)
-                printf '%s\n' /var/db/pkg/*/
-            ;;
+			(OpenBSD*)
+				printf '%s\n' /var/db/pkg/*/
+			;;
 
-            (Minix)
-                printf '%s\n' /usr/pkg/var/db/pkg/*/
-            ;;
+			(Minix)
+				printf '%s\n' /usr/pkg/var/db/pkg/*/
+			;;
 
-        esac | wc -l
-    `
+		esac | wc -l
+	`
 
-    case $os in
-        # IRIX's package manager adds 3 lines of extra
-        # output which we must account for here.
-        (IRIX)
-            packages=$((packages - 3))
-        ;;
+	case $os in
+		# IRIX's package manager adds 3 lines of extra
+		# output which we must account for here.
+		(IRIX)
+			packages=$((packages - 3))
+		;;
 
-        # OpenBSD's wc prints whitespace before the output
-        # which needs to be stripped.
-        (OpenBSD)
-            packages=$((packages))
-        ;;
-    esac
+		# OpenBSD's wc prints whitespace before the output
+		# which needs to be stripped.
+		(OpenBSD)
+			packages=$((packages))
+		;;
+	esac
 
-    case $packages in
-        (1?*|[2-9]*)
-            log pkgs "$packages" >&6
-        ;;
-    esac
+	case $packages in
+		(1?*|[2-9]*)
+			log pkgs "$packages" >&6
+		;;
+	esac
 }
 
 get_memory() {
-    case $os in
-        # Used memory is calculated using the following "formula":
-        # MemUsed = MemTotal + Shmem - MemFree - Buffers - Cached - SReclaimable
-        # Source: https://github.com/KittyKatt/screenFetch/issues/386
-        (Linux*)
-            # Parse the '/proc/meminfo' file splitting on ':' and 'k'.
-            # The format of the file is 'key:   000kB' and an additional
-            # split is used on 'k' to filter out 'kB'.
-            while IFS=':k '  read -r key val _; do
-                case $key in
-                    (MemTotal)
-                        mem_used=$((mem_used + val))
-                        mem_full=$val
-                    ;;
+	case $os in
+		# Used memory is calculated using the following "formula":
+		# MemUsed = MemTotal + Shmem - MemFree - Buffers - Cached - SReclaimable
+		# Source: https://github.com/KittyKatt/screenFetch/issues/386
+		(Linux*)
+			# Parse the '/proc/meminfo' file splitting on ':' and 'k'.
+			# The format of the file is 'key:   000kB' and an additional
+			# split is used on 'k' to filter out 'kB'.
+			while IFS=':k '  read -r key val _; do
+				case $key in
+					(MemTotal)
+						mem_used=$((mem_used + val))
+						mem_full=$val
+					;;
 
-                    (Shmem)
-                        mem_used=$((mem_used + val))
-                    ;;
+					(Shmem)
+						mem_used=$((mem_used + val))
+					;;
 
-                    (MemFree | Buffers | Cached | SReclaimable)
-                        mem_used=$((mem_used - val))
-                    ;;
+					(MemFree | Buffers | Cached | SReclaimable)
+						mem_used=$((mem_used - val))
+					;;
 
-                    # If detected this will be used over the above calculation
-                    # for mem_used. Available since Linux 3.14rc.
-                    # See kernel commit 34e431b0ae398fc54ea69ff85ec700722c9da773
-                    (MemAvailable)
-                        mem_avail=$val
-                    ;;
-                esac
-            done < /proc/meminfo
+					# If detected this will be used over the above calculation
+					# for mem_used. Available since Linux 3.14rc.
+					# See kernel commit 34e431b0ae398fc54ea69ff85ec700722c9da773
+					(MemAvailable)
+						mem_avail=$val
+					;;
+				esac
+			done < /proc/meminfo
 
-            case $mem_avail in
-                (*[0-9]*)
-                    mem_used=$(((mem_full - mem_avail) / 1024))
-                ;;
+			case $mem_avail in
+				(*[0-9]*)
+					mem_used=$(((mem_full - mem_avail) / 1024))
+				;;
 
-                *)
-                    mem_used=$((mem_used / 1024))
-                ;;
-            esac
+				*)
+					mem_used=$((mem_used / 1024))
+				;;
+			esac
 
-            mem_full=$((mem_full / 1024))
-        ;;
+			mem_full=$((mem_full / 1024))
+		;;
 
-        (OpenBSD*)
-            mem_full=$(($(sysctl -n hw.physmem) / 1024 / 1024))
+		(OpenBSD*)
+			mem_full=$(($(sysctl -n hw.physmem) / 1024 / 1024))
 
-            # This is a really simpler parser for 'vmstat' which grabs
-            # the used memory amount in a lazy way. 'vmstat' prints 3
-            # lines of output with the needed value being stored in the
-            # final line.
-            #
-            # This loop simply grabs the 3rd element of each line until
-            # the EOF is reached. Each line overwrites the value of the
-            # previous one so we're left with what we wanted. This isn't
-            # slow as only 3 lines are parsed.
-            while read -r _ _ line _; do
-                mem_used=${line%%M}
+			# This is a really simpler parser for 'vmstat' which grabs
+			# the used memory amount in a lazy way. 'vmstat' prints 3
+			# lines of output with the needed value being stored in the
+			# final line.
+			#
+			# This loop simply grabs the 3rd element of each line until
+			# the EOF is reached. Each line overwrites the value of the
+			# previous one so we're left with what we wanted. This isn't
+			# slow as only 3 lines are parsed.
+			while read -r _ _ line _; do
+				mem_used=${line%%M}
 
-            # Using '<<-EOF' is the only way to loop over a command's
-            # output without the use of a pipe ('|').
-            # This ensures that any variables defined in the while loop
-            # are still accessible in the script.
-            done <<-EOF
-                $(vmstat)
+			# Using '<<-EOF' is the only way to loop over a command's
+			# output without the use of a pipe ('|').
+			# This ensures that any variables defined in the while loop
+			# are still accessible in the script.
+			done <<-EOF
+				$(vmstat)
 			EOF
-        ;;
+		;;
 
-        # Used memory is calculated using the following "formula":
-        # mem_full - ((inactive + free + cache) * page_size / 1024)
-        (FreeBSD*|DragonFly*)
-            mem_full=$(($(sysctl -n hw.physmem) / 1024 / 1024))
+		# Used memory is calculated using the following "formula":
+		# mem_full - ((inactive + free + cache) * page_size / 1024)
+		(FreeBSD*|DragonFly*)
+			mem_full=$(($(sysctl -n hw.physmem) / 1024 / 1024))
 
-            # Use 'set --' to store the output of the command in the
-            # argument list. POSIX sh has no arrays but this is close enough.
-            #
-            # Disable the shellcheck warning for word-splitting
-            # as it's safe and intended ('set -f' disables globbing).
-            # shellcheck disable=2046
-            {
-                set -f
-                set +f -- $(sysctl -n hw.pagesize \
-                                      vm.stats.vm.v_inactive_count \
-                                      vm.stats.vm.v_free_count \
-                                      vm.stats.vm.v_cache_count)
-            }
+			# Use 'set --' to store the output of the command in the
+			# argument list. POSIX sh has no arrays but this is close enough.
+			#
+			# Disable the shellcheck warning for word-splitting
+			# as it's safe and intended ('set -f' disables globbing).
+			# shellcheck disable=2046
+			{
+				set -f
+				set +f -- $(sysctl -n hw.pagesize \
+									  vm.stats.vm.v_inactive_count \
+									  vm.stats.vm.v_free_count \
+									  vm.stats.vm.v_cache_count)
+			}
 
-            # Calculate the amount of used memory.
-            # $1: hw.pagesize
-            # $2: vm.stats.vm.v_inactive_count
-            # $3: vm.stats.vm.v_free_count
-            # $4: vm.stats.vm.v_cache_count
-            mem_used=$((mem_full - (($2 + $3 + $4) * $1 / 1024 / 1024)))
-        ;;
-        (Minix)
-            # Minix includes the '/proc' filesystem though the format
-            # differs from Linux. The '/proc/meminfo' file is only a
-            # single line with space separated elements and elements
-            # 2 and 3 contain the total and free memory numbers.
-            read -r _ mem_full mem_free _ < /proc/meminfo
+			# Calculate the amount of used memory.
+			# $1: hw.pagesize
+			# $2: vm.stats.vm.v_inactive_count
+			# $3: vm.stats.vm.v_free_count
+			# $4: vm.stats.vm.v_cache_count
+			mem_used=$((mem_full - (($2 + $3 + $4) * $1 / 1024 / 1024)))
+		;;
+		(Minix)
+			# Minix includes the '/proc' filesystem though the format
+			# differs from Linux. The '/proc/meminfo' file is only a
+			# single line with space separated elements and elements
+			# 2 and 3 contain the total and free memory numbers.
+			read -r _ mem_full mem_free _ < /proc/meminfo
 
-            mem_used=$(((mem_full - mem_free) / 1024))
-            mem_full=$(( mem_full / 1024))
-        ;;
+			mem_used=$(((mem_full - mem_free) / 1024))
+			mem_full=$(( mem_full / 1024))
+		;;
 
-    esac
+	esac
 
-    log memory "${mem_used:-?}M / ${mem_full:-?}M" >&6
+	log memory "${mem_used:-?}M / ${mem_full:-?}M" >&6
 }
 
 get_de() {
-    #display XDG_CURRENT_DESKTOP, then DESKTOP_SESSION.
-    log de "${XDG_CURRENT_DESKTOP:-$DESKTOP_SESSION}" >&6
+	#display XDG_CURRENT_DESKTOP, then DESKTOP_SESSION.
+	log de "${XDG_CURRENT_DESKTOP:-$DESKTOP_SESSION}" >&6
 }
 
 get_shell() {
-    log shell "${SHELL##*/}" >&6
+	log shell "${SHELL##*/}" >&6
 }
 
 get_editor() {
 	#display TE then VISUAL then EDITOR
-    log editor "${TE:-${VISUAL:-$EDITOR}}" >&6
+	log editor "${TE:-${VISUAL:-$EDITOR}}" >&6
 }
 
 get_palette() {
-    # Print the first 8 terminal colors. This uses the existing
-    # sequences to change text color with a sequence prepended
-    # to reverse the foreground and background colors.
-    #
-    # This allows us to save hardcoding a second set of sequences
-    # for background colors.
-    #
-    # False positive.
-    # shellcheck disable=2154
-    {
-        esc SGR 7
-        palette="$e$c1 $c1 $c2 $c2 $c3 $c3 $c4 $c4 $c5 $c5 $c6 $c6 "
-        esc SGR 0
-        palette="$palette$e"
-    }
+	# Print the first 8 terminal colors. This uses the existing
+	# sequences to change text color with a sequence prepended
+	# to reverse the foreground and background colors.
+	#
+	# This allows us to save hardcoding a second set of sequences
+	# for background colors.
+	#
+	# False positive.
+	# shellcheck disable=2154
+	{
+		esc SGR 7
+		palette="$e$c1 $c1 $c2 $c2 $c3 $c3 $c4 $c4 $c5 $c5 $c6 $c6 "
+		esc SGR 0
+		palette="$palette$e"
+	}
 
-    # Print the palette with a new-line before and afterwards.
-    printf '\n' >&6
-    log "$palette
-        " " " >&6
+	# Print the palette with a new-line before and afterwards.
+	printf '\n' >&6
+	log "$palette
+		" " " >&6
 }
 
 main() {
-    [ "$1" = --version ] && {
-        printf 'pfetch 0.7.0\n'
-        exit 0
-    }
+	[ "$1" = --version ] && {
+		printf 'pfetch 0.7.0\n'
+		exit 0
+	}
 
-    # Hide 'stderr' unless the first argument is '-v'. This saves
-    # polluting the script with '2>/dev/null'.
-    [ "$1" = -v ] || {
-        exec 2>/dev/null
-    }
+	# Hide 'stderr' unless the first argument is '-v'. This saves
+	# polluting the script with '2>/dev/null'.
+	[ "$1" = -v ] || {
+		exec 2>/dev/null
+	}
 
-    # Hide 'stdout' and selectively print to it using '>&6'.
-    # This gives full control over what it displayed on the screen.
-    exec 6>&1 >/dev/null
+	# Hide 'stdout' and selectively print to it using '>&6'.
+	# This gives full control over what it displayed on the screen.
+	exec 6>&1 >/dev/null
 
-    # Store raw escape sequence character for later reuse.
-    esc_c=$(printf '\033')
+	# Store raw escape sequence character for later reuse.
+	esc_c=$(printf '\033')
 
-    # Allow the user to execute their own script and modify or
-    # extend pfetch's behavior.
-    # shellcheck source=/dev/null
-    . "${PF_SOURCE:-/dev/null}" ||:
+	# Allow the user to execute their own script and modify or
+	# extend pfetch's behavior.
+	# shellcheck source=/dev/null
+	. "${PF_SOURCE:-/dev/null}" ||:
 
-    # Ensure that the 'TMPDIR' is writable as heredocs use it and
-    # fail without the write permission. This was found to be the
-    # case on Android where the temporary directory requires root.
-    [ -w "${TMPDIR:-/tmp}" ] || export TMPDIR=~
+	# Ensure that the 'TMPDIR' is writable as heredocs use it and
+	# fail without the write permission. This was found to be the
+	# case on Android where the temporary directory requires root.
+	[ -w "${TMPDIR:-/tmp}" ] || export TMPDIR=~
 
-    # Generic color list.
-    # Disable warning about unused variables.
-    # shellcheck disable=2034
-    for _c in c1 c2 c3 c4 c5 c6 c7 c8; do
-        esc SGR "3${_c#?}" 0
-        export "$_c=$e"
-    done
+	# Generic color list.
+	# Disable warning about unused variables.
+	# shellcheck disable=2034
+	for _c in c1 c2 c3 c4 c5 c6 c7 c8; do
+		esc SGR "3${_c#?}" 0
+		export "$_c=$e"
+	done
 
-    # Disable line wrapping and catch the EXIT signal to enable it again
-    # on exit. Ideally you'd somehow query the current value and retain
-    # it but I'm yet to see this irk anyone.
-    esc_p DECAWM l >&6
-    trap 'esc_p DECAWM h >&6' EXIT
+	# Disable line wrapping and catch the EXIT signal to enable it again
+	# on exit. Ideally you'd somehow query the current value and retain
+	# it but I'm yet to see this irk anyone.
+	esc_p DECAWM l >&6
+	trap 'esc_p DECAWM h >&6' EXIT
 
-    # Store the output of 'uname' to avoid calling it multiple times
-    # throughout the script. 'read <<EOF' is the simplest way of reading
-    # a command into a list of variables.
-    read -r os kernel arch <<-EOF
+	# Store the output of 'uname' to avoid calling it multiple times
+	# throughout the script. 'read <<EOF' is the simplest way of reading
+	# a command into a list of variables.
+	read -r os kernel arch <<-EOF
 		$(uname -srm)
 	EOF
 
-    # Allow the user to specify the order and inclusion of information
-    # functions through the 'PF_INFO' environment variable.
-    # shellcheck disable=2086
-    {
-        # Disable globbing and set the positional parameters to the
-        # contents of 'PF_INFO'.
-        set -f
-        set +f -- ${PF_INFO-os host kernel uptime pkgs memory de shell editor palette}
+	# Allow the user to specify the order and inclusion of information
+	# functions through the 'PF_INFO' environment variable.
+	# shellcheck disable=2086
+	{
+		# Disable globbing and set the positional parameters to the
+		# contents of 'PF_INFO'.
+		set -f
+		set +f -- ${PF_INFO-os host kernel uptime pkgs memory de shell editor palette}
 
-        # Iterate over the info functions to determine the lengths of the
-        # "info names" for output alignment. The option names and subtitles
-        # match 1:1 so this is thankfully simple.
-        for info do
-            command -v "get_$info" >/dev/null || continue
+		# Iterate over the info functions to determine the lengths of the
+		# "info names" for output alignment. The option names and subtitles
+		# match 1:1 so this is thankfully simple.
+		for info do
+			command -v "get_$info" >/dev/null || continue
 
-            # This was a ternary operation but they aren't supported in
-            # Minix's shell.
-            [ "${#info}" -gt "${info_length:-0}" ] &&
-                info_length=${#info}
-        done
+			# This was a ternary operation but they aren't supported in
+			# Minix's shell.
+			[ "${#info}" -gt "${info_length:-0}" ] &&
+				info_length=${#info}
+		done
 
-        # Add an additional space of length to act as a gap.
-        info_length=$((info_length + 1))
+		# Add an additional space of length to act as a gap.
+		info_length=$((info_length + 1))
 
-        # Iterate over the above list and run any existing "get_" functions.
-        for info do
-            "get_$info"
-        done
-    }
+		# Iterate over the above list and run any existing "get_" functions.
+		for info do
+			"get_$info"
+		done
+	}
 
-    # Print '$cursor_pos' amount of newlines to correctly position the
-    # cursor. This used to be a 'printf $(seq X X)' however 'seq' is only
-    # typically available (by default) on GNU based systems!
-    while [ "${i:=0}" -le "${cursor_pos:-0}" ]; do
-        printf '\n'
-        i=$((i + 1))
-    done >&6
+	# Print '$cursor_pos' amount of newlines to correctly position the
+	# cursor. This used to be a 'printf $(seq X X)' however 'seq' is only
+	# typically available (by default) on GNU based systems!
+	while [ "${i:=0}" -le "${cursor_pos:-0}" ]; do
+		printf '\n'
+		i=$((i + 1))
+	done >&6
 }
 
 main "$@"
