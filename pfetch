@@ -56,7 +56,6 @@ has() {
 }
 
 log() {
-
     # End here if no data was found.
     [ "$2" ] || return
 
@@ -102,52 +101,7 @@ log() {
     info_height=$((${info_height:-0} + 1))
 }
 
-get_title() {
-    # Username is retrieved by first checking '$USER' with a fallback
-    # to the 'id -un' command.
-    user=${USER:-$(id -un)}
-
-    # Hostname is retrieved by first checking '$HOSTNAME' with a fallback
-    # to the 'hostname' command.
-    #
-    # Disable the warning about '$HOSTNAME' being undefined in POSIX sh as
-    # the intention for using it is allowing the user to overwrite the
-    # value on invocation.
-    # shellcheck disable=3028,2039
-    host=${HOSTNAME:-${host:-$(hostname)}}
-
-    # If the hostname is still not found, fallback to the contents of the
-    # /etc/hostname file.
-    [ "$host" ] || read -r host < /etc/hostname
-
-    # Add escape sequences for coloring to user and host name. As we embed
-    # them directly in the arguments passed to log(), we cannot use esc_p().
-    esc SGR 1
-    user=$e$user
-    esc SGR "3${PF_COL3:-1}"
-    user=$e$user
-    esc SGR 1
-    user=$user$e
-    esc SGR 1
-    host=$e$host
-    esc SGR "3${PF_COL3:-1}"
-    host=$e$host
-
-    log "${user}@${host}" " " >&6
-}
-
 get_os() {
-    # This function is called twice, once to detect the distribution name
-    # for the purposes of picking an ascii art early and secondly to display
-    # the distribution name in the info output (if enabled).
-    #
-    # On first run, this function displays _nothing_, only on the second
-    # invocation is 'log()' called.
-    [ "$distro" ] && {
-        log os "$distro" >&6
-        return
-    }
-
     case $os in
         (Linux*)
             if has lsb_release; then
@@ -210,12 +164,13 @@ get_os() {
             distro="$os $kernel"
         ;;
     esac
+
+	log os "$distro" >&6
 }
 
 get_kernel() {
     case $os in
-        # Don't print kernel output on some systems as the
-        # OS name includes it.
+        # Don't print kernel when in name
         (*BSD*|Minix)
             return
         ;;
@@ -524,125 +479,12 @@ get_memory() {
     log memory "${mem_used:-?}M / ${mem_full:-?}M" >&6
 }
 
-get_wm() {
-    case $os in
-
-        (*)
-            # xprop can be used to grab the window manager's properties
-            # which contains the window manager's name under '_NET_WM_NAME'.
-            #
-            # The upside to using 'xprop' is that you don't need to hardcode
-            # a list of known window manager names. The downside is that
-            # not all window managers conform to setting the '_NET_WM_NAME'
-            # atom..
-            #
-            # List of window managers which fail to set the name atom:
-            # catwm, fvwm, dwm, 2bwm, monster, wmaker and sowm [mine! ;)].
-            #
-            # The final downside to this approach is that it does _not_
-            # support Wayland environments. The only solution which supports
-            # Wayland is the 'ps' parsing mentioned below.
-            #
-            # A more naive implementation is to parse the last line of
-            # '~/.xinitrc' to extract the second white-space separated
-            # element.
-            #
-            # The issue with an approach like this is that this line data
-            # does not always equate to the name of the window manager and
-            # could in theory be _anything_.
-            #
-            # This also fails when the user launches xorg through a display
-            # manager or other means.
-            #
-            #
-            # Another naive solution is to parse 'ps' with a hardcoded list
-            # of window managers to detect the current window manager (based
-            # on what is running).
-            #
-            # The issue with this approach is the need to hardcode and
-            # maintain a list of known window managers.
-            #
-            # Another issue is that process names do not always equate to
-            # the name of the window manager. False-positives can happen too.
-            #
-            # This is the only solution which supports Wayland based
-            # environments sadly. It'd be nice if some kind of standard were
-            # established to identify Wayland environments.
-            #
-            # pfetch's goal is to remain _simple_, if you'd like a "full"
-            # implementation of window manager detection use 'neofetch'.
-            #
-            # Neofetch use a combination of 'xprop' and 'ps' parsing to
-            # support all window managers (including non-conforming and
-            # Wayland) though it's a lot more complicated!
-
-            # Don't display window manager if X isn't running.
-            [ "$DISPLAY" ] || return
-
-            # This is a two pass call to xprop. One call to get the window
-            # manager's ID and another to print its properties.
-            has xprop && {
-                # The output of the ID command is as follows:
-                # _NET_SUPPORTING_WM_CHECK: window id # 0x400000
-                #
-                # To extract the ID, everything before the last space
-                # is removed.
-                id=$(xprop -root -notype _NET_SUPPORTING_WM_CHECK)
-                id=${id##* }
-
-                # The output of the property command is as follows:
-                # _NAME 8t
-                # _NET_WM_PID = 252
-                # _NET_WM_NAME = "bspwm"
-                # _NET_SUPPORTING_WM_CHECK: window id # 0x400000
-                # WM_CLASS = "wm", "Bspwm"
-                #
-                # To extract the name, everything before '_NET_WM_NAME = \"'
-                # is removed and everything after the next '"' is removed.
-                wm=$(xprop -id "$id" -notype -len 25 -f _NET_WM_NAME 8t)
-            }
-
-            # Handle cases of a window manager _not_ populating the
-            # '_NET_WM_NAME' atom. Display nothing in this case.
-            case $wm in
-                (*'_NET_WM_NAME = '*)
-                    wm=${wm##*_NET_WM_NAME = \"}
-                    wm=${wm%%\"*}
-                ;;
-
-                (*)
-                    # Fallback to checking the process list
-                    # for the select few window managers which
-                    # don't set '_NET_WM_NAME'.
-                    while read -r ps_line; do
-                        case $ps_line in
-                            (*catwm*)     wm=catwm ;;
-                            (*fvwm*)      wm=fvwm ;;
-                            (*dwm*)       wm=dwm ;;
-                            (*2bwm*)      wm=2bwm ;;
-                            (*monsterwm*) wm=monsterwm ;;
-                            (*wmaker*)    wm='Window Maker' ;;
-                            (*sowm*)      wm=sowm ;;
-                        esac
-                    done <<-EOF
-                        $(ps x)
-					EOF
-                ;;
-            esac
-        ;;
-    esac
-
-    log wm "$wm" >&6
-}
-
 get_de() {
-    # Display the value of '$XDG_CURRENT_DESKTOP', if it's empty,
-    # display the value of '$DESKTOP_SESSION'.
+    #display XDG_CURRENT_DESKTOP, then DESKTOP_SESSION.
     log de "${XDG_CURRENT_DESKTOP:-$DESKTOP_SESSION}" >&6
 }
 
 get_shell() {
-    # Display the basename of the '$SHELL' environment variable.
     log shell "${SHELL##*/}" >&6
 }
 
@@ -724,10 +566,6 @@ main() {
 		$(uname -srm)
 	EOF
 
-    # Always run 'get_os' for the purposes of detecting which ascii
-    # art to display.
-    get_os
-
     # Allow the user to specify the order and inclusion of information
     # functions through the 'PF_INFO' environment variable.
     # shellcheck disable=2086
@@ -735,7 +573,7 @@ main() {
         # Disable globbing and set the positional parameters to the
         # contents of 'PF_INFO'.
         set -f
-        set +f -- ${PF_INFO-title os host kernel uptime pkgs memory}
+        set +f -- ${PF_INFO-os host kernel uptime pkgs memory de shell editor palette}
 
         # Iterate over the info functions to determine the lengths of the
         # "info names" for output alignment. The option names and subtitles
