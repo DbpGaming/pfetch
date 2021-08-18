@@ -838,9 +838,8 @@ get_shell() {
 }
 
 get_editor() {
-    # Display the value of '$VISUAL', if it's empty, display the
-    # value of '$EDITOR'.
-    log editor "${VISUAL:-$EDITOR}" >&6
+	#display TE then VISUAL then EDITOR
+    log editor "${$TE:-${VISUAL:-$EDITOR}}" >&6
 }
 
 get_palette() {
