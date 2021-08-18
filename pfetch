@@ -489,8 +489,8 @@ get_shell() {
 }
 
 get_editor() {
-	#display TE then VISUAL then EDITOR
-	log editor "${TE:-${VISUAL:-$EDITOR}}" >&6
+	#display VISUAL then EDITOR
+	log editor "${VISUAL:-$EDITOR}" >&6
 }
 
 get_palette() {
