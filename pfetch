@@ -150,42 +150,9 @@ get_os() {
 
     case $os in
         (Linux*)
-            # Some Linux distributions (which are based on others)
-            # fail to identify as they **do not** change the upstream
-            # distribution's identification packages or files.
-            #
-            # It is senseless to add a special case in the code for
-            # each and every distribution (which _is_ technically no
-            # different from what it is based on) as they're either too
-            # lazy to modify upstream's identification files or they
-            # don't have the know-how (or means) to ship their own
-            # lsb-release package.
-            #
-            # This causes users to think there's a bug in system detection
-            # tools like neofetch or pfetch when they technically *do*
-            # function correctly.
-            #
-            # Exceptions are made for distributions which are independent,
-            # not based on another distribution or follow different
-            # standards.
-            #
-            # This applies only to distributions which follow the standard
-            # by shipping unmodified identification files and packages
-            # from their respective upstreams.
             if has lsb_release; then
                 distro=$(lsb_release -sd)
-
-            # Android detection works by checking for the existence of
-            # the follow two directories. I don't think there's a simpler
-            # method than this.
-            elif [ -d /system/app ] && [ -d /system/priv-app ]; then
-                distro="Android $(getprop ro.build.version.release)"
-
             else
-                # This used to be a simple '. /etc/os-release' but I believe
-                # this is insecure as we blindly executed whatever was in the
-                # file. This parser instead simply handles 'key=val', treating
-                # the file contents as plain-text.
                 while IFS='=' read -r key val; do
                     case $key in
                         (PRETTY_NAME)
@@ -215,24 +182,12 @@ get_os() {
             esac
         ;;
 
-        (Haiku)
-            # Haiku uses 'uname -v' for version information
-            # instead of 'uname -r' which only prints '1'.
-            distro=$(uname -sv)
-        ;;
-
         (Minix|DragonFly)
             distro="$os $kernel"
 
             # Minix and DragonFly don't support the escape
             # sequences used, clear the exit trap.
             trap '' EXIT
-        ;;
-
-        (SunOS)
-            # Grab the first line of the '/etc/release' file
-            # discarding everything after '('.
-            IFS='(' read -r distro _ < /etc/release
         ;;
 
         (OpenBSD*)
@@ -261,7 +216,7 @@ get_kernel() {
     case $os in
         # Don't print kernel output on some systems as the
         # OS name includes it.
-        (*BSD*|Haiku|Minix)
+        (*BSD*|Minix)
             return
         ;;
     esac
@@ -285,11 +240,6 @@ get_host() {
 
         (FreeBSD* | DragonFly*)
             host=$(sysctl -n hw.model)
-        ;;
-
-        (NetBSD*)
-            host=$(sysctl -n machdep.dmi.system-vendor \
-                             machdep.dmi.system-product)
         ;;
 
         (OpenBSD*)
@@ -365,44 +315,6 @@ get_uptime() {
             # the current time in seconds.
             s=$(($(date +%s) - s))
         ;;
-
-        (Haiku)
-            # The boot time is returned in microseconds, convert it to
-            # regular seconds.
-            s=$(($(system_time) / 1000000))
-        ;;
-
-        (SunOS)
-            # Split the output of 'kstat' on '.' and any white-space
-            # which exists in the command output.
-            #
-            # The output is as follows:
-            # unix:0:system_misc:snaptime	14809.906993005
-            #
-            # The parser extracts:          ^^^^^
-            IFS='	.' read -r _ s _ <<-EOF
-				$(kstat -p unix:0:system_misc:snaptime)
-			EOF
-        ;;
-
-        (IRIX)
-            # Grab the uptime in a pretty format. Usually,
-            # 00:00:00 from the 'ps' command.
-            t=$(LC_ALL=POSIX ps -o etime= -p 1)
-
-            # Split the pretty output into days or hours
-            # based on the uptime.
-            case $t in
-                (*-*)   d=${t%%-*} t=${t#*-} ;;
-                (*:*:*) h=${t%%:*} t=${t#*:} ;;
-            esac
-
-            h=${h#0} t=${t#0}
-
-            # Convert the split pretty fields back into
-            # seconds so we may re-convert them to our format.
-            s=$((${d:-0}*86400 + ${h:-0}*3600 + ${t%%:*}*60 + ${t#*:}))
-        ;;
     esac
 
     # Convert the uptime from seconds into days, hours and minutes.
@@ -472,26 +384,10 @@ get_pkgs() {
                 printf '%s\n' /var/db/pkg/*/
             ;;
 
-            (NetBSD*)
-                pkg_info
-            ;;
-
-            (Haiku)
-                printf '%s\n' /boot/system/package-links/*
-            ;;
-
             (Minix)
                 printf '%s\n' /usr/pkg/var/db/pkg/*/
             ;;
 
-            (SunOS)
-                has pkginfo && pkginfo -i
-                has pkg     && pkg list
-            ;;
-
-            (IRIX)
-                versions -b
-            ;;
         esac | wc -l
     `
 
@@ -612,40 +508,6 @@ get_memory() {
             # $4: vm.stats.vm.v_cache_count
             mem_used=$((mem_full - (($2 + $3 + $4) * $1 / 1024 / 1024)))
         ;;
-
-        (NetBSD*)
-            mem_full=$(($(sysctl -n hw.physmem64) / 1024 / 1024))
-
-            # NetBSD implements a lot of the Linux '/proc' filesystem,
-            # this uses the same parser as the Linux memory detection.
-            while IFS=':k ' read -r key val _; do
-                case $key in
-                    (MemFree)
-                        mem_free=$((val / 1024))
-                        break
-                    ;;
-                esac
-            done < /proc/meminfo
-
-            mem_used=$((mem_full - mem_free))
-        ;;
-
-        (Haiku)
-            # Read the first line of 'sysinfo -mem' splitting on
-            # '(', ' ', and ')'. The needed information is then
-            # stored in the 5th and 7th elements. Using '_' "consumes"
-            # an element allowing us to proceed to the next one.
-            #
-            # The parsed format is as follows:
-            # 3501142016 bytes free      (used/max  792645632 / 4293787648)
-            IFS='( )' read -r _ _ _ _ mem_used _ mem_full <<-EOF
-                $(sysinfo -mem)
-			EOF
-
-            mem_used=$((mem_used / 1024 / 1024))
-            mem_full=$((mem_full / 1024 / 1024))
-        ;;
-
         (Minix)
             # Minix includes the '/proc' filesystem though the format
             # differs from Linux. The '/proc/meminfo' file is only a
@@ -657,58 +519,6 @@ get_memory() {
             mem_full=$(( mem_full / 1024))
         ;;
 
-        (SunOS)
-            hw_pagesize=$(pagesize)
-
-            # 'kstat' outputs memory in the following format:
-            # unix:0:system_pages:pagestotal	1046397
-            # unix:0:system_pages:pagesfree		885018
-            #
-            # This simply uses the first "element" (white-space
-            # separated) as the key and the second element as the
-            # value.
-            #
-            # A variable is then assigned based on the key.
-            while read -r key val; do
-                case $key in
-                    (*total)
-                        pages_full=$val
-                    ;;
-
-                    (*free)
-                        pages_free=$val
-                    ;;
-                esac
-            done <<-EOF
-				$(kstat -p unix:0:system_pages:pagestotal \
-                           unix:0:system_pages:pagesfree)
-			EOF
-
-            mem_full=$((pages_full * hw_pagesize / 1024 / 1024))
-            mem_free=$((pages_free * hw_pagesize / 1024 / 1024))
-            mem_used=$((mem_full - mem_free))
-        ;;
-
-        (IRIX)
-            # Read the memory information from the 'top' command. Parse
-            # and split each line until we reach the line starting with
-            # "Memory".
-            #
-            # Example output: Memory: 160M max, 147M avail, .....
-            while IFS=' :' read -r label mem_full _ mem_free _; do
-                case $label in
-                    (Memory)
-                        mem_full=${mem_full%M}
-                        mem_free=${mem_free%M}
-                        break
-                    ;;
-                esac
-            done <<-EOF
-                $(top -n)
-			EOF
-
-            mem_used=$((mem_full - mem_free))
-        ;;
     esac
 
     log memory "${mem_used:-?}M / ${mem_full:-?}M" >&6
@@ -825,7 +635,6 @@ get_wm() {
     log wm "$wm" >&6
 }
 
-
 get_de() {
     # Display the value of '$XDG_CURRENT_DESKTOP', if it's empty,
     # display the value of '$DESKTOP_SESSION'.
@@ -839,7 +648,7 @@ get_shell() {
 
 get_editor() {
 	#display TE then VISUAL then EDITOR
-    log editor "${$TE:-${VISUAL:-$EDITOR}}" >&6
+    log editor "${TE:-${VISUAL:-$EDITOR}}" >&6
 }
 
 get_palette() {
