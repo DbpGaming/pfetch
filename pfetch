@@ -65,10 +65,6 @@ log() {
 	# Use 'set --' as a means of stripping all leading and trailing
 	# white-space from the info string. This also normalizes all
 	# white-space inside of the string.
-	#
-	# Disable the shellcheck warning for word-splitting
-	# as it's safe and intended ('set -f' disables globbing).
-	# shellcheck disable=2046,2086
 	{
 		set -f
 		set +f -- $2
@@ -209,10 +205,6 @@ get_host() {
 	# Turn the host string into an argument list so we can iterate
 	# over it and remove OEM strings and other information which
 	# shouldn't be displayed.
-	#
-	# Disable the shellcheck warning for word-splitting
-	# as it's safe and intended ('set -f' disables globbing).
-	# shellcheck disable=2046,2086
 	{
 		set -f
 		set +f -- $host
@@ -300,8 +292,6 @@ get_pkgs() {
 	# var=$(
 	#	code here
 	# )
-	#
-	# shellcheck disable=2006
 	packages=`
 		case $os in
 			(Linux*)
@@ -444,10 +434,6 @@ get_memory() {
 
 			# Use 'set --' to store the output of the command in the
 			# argument list. POSIX sh has no arrays but this is close enough.
-			#
-			# Disable the shellcheck warning for word-splitting
-			# as it's safe and intended ('set -f' disables globbing).
-			# shellcheck disable=2046
 			{
 				set -f
 				set +f -- $(sysctl -n hw.pagesize \
@@ -500,9 +486,6 @@ get_palette() {
 	#
 	# This allows us to save hardcoding a second set of sequences
 	# for background colors.
-	#
-	# False positive.
-	# shellcheck disable=2154
 	{
 		esc SGR 7
 		palette="$e$c1 $c1 $c2 $c2 $c3 $c3 $c4 $c4 $c5 $c5 $c6 $c6 "
@@ -537,7 +520,6 @@ main() {
 
 	# Allow the user to execute their own script and modify or
 	# extend pfetch's behavior.
-	# shellcheck source=/dev/null
 	. "${PF_SOURCE:-/dev/null}" ||:
 
 	# Ensure that the 'TMPDIR' is writable as heredocs use it and
@@ -547,7 +529,6 @@ main() {
 
 	# Generic color list.
 	# Disable warning about unused variables.
-	# shellcheck disable=2034
 	for _c in c1 c2 c3 c4 c5 c6 c7 c8; do
 		esc SGR "3${_c#?}" 0
 		export "$_c=$e"
@@ -568,7 +549,6 @@ main() {
 
 	# Allow the user to specify the order and inclusion of information
 	# functions through the 'PF_INFO' environment variable.
-	# shellcheck disable=2086
 	{
 		# Disable globbing and set the positional parameters to the
 		# contents of 'PF_INFO'.
