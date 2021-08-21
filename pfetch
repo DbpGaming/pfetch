@@ -116,20 +116,6 @@ get_os() {
 			# around the distribution name, strip them.
 			distro=${distro##[\"\']}
 			distro=${distro%%[\"\']}
-
-			# Special cases for (independent) distributions which
-			# don't follow any os-release/lsb standards whatsoever.
-			has crux && distro=$(crux)
-			has guix && distro='Guix System'
-
-			# Check to see if we're running Bedrock Linux which is
-			# very unique. This simply checks to see if the user's
-			# PATH contains a Bedrock specific value.
-			case $PATH in
-				(*/bedrock/cross/*)
-					distro='Bedrock Linux'
-				;;
-			esac
 		;;
 
 		(Minix|DragonFly)
@@ -337,12 +323,6 @@ get_pkgs() {
 	`
 
 	case $os in
-		# IRIX's package manager adds 3 lines of extra
-		# output which we must account for here.
-		(IRIX)
-			packages=$((packages - 3))
-		;;
-
 		# OpenBSD's wc prints whitespace before the output
 		# which needs to be stripped.
 		(OpenBSD)
