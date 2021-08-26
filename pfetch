@@ -128,7 +128,7 @@ get_os() {
 			distro="$distro $openbsd_ver"
 		;;
 
-		FreeBSD)
+		(FreeBSD)
 			distro="$os $(freebsd-version)"
 		;;
 
@@ -224,7 +224,7 @@ get_uptime() {
 			IFS=. read -r s _ < /proc/uptime
 		;;
 
-		*BSD*)
+		(*BSD*)
 			s=$(sysctl -n kern.boottime)
 
 			# Extract the uptime in seconds from the following output:
@@ -259,14 +259,7 @@ get_pkgs() {
 	# The output from this is then piped to 'wc -l' to count each
 	# line, giving us the total package count of whatever package
 	# managers are installed.
-	#
-	# Backticks are *required* here as '/bin/sh' on macOS is
-	# 'bash 3.2' and it can't handle the following:
-	#
-	# var=$(
-	#	code here
-	# )
-	packages=`
+	packages=$(
 		case $os in
 			(Linux*)
 				# Commands which print packages one per line.
@@ -285,7 +278,14 @@ get_pkgs() {
 				printf '%s\n' /var/db/pkg/*/
 			;;
 		esac | wc -l
-	`
+	)
+
+	# 'wc -l' can have leading and/or trailing whitespace
+    # depending on the implementation, so strip them.
+    # Procedure explained at https://github.com/dylanaraps/pure-sh-bible
+    # (trim-leading-and-trailing-white-space-from-string)
+    packages=${packages#"${packages%%[![:space:]]*}"}
+    packages=${packages%"${packages##*[![:space:]]}"}
 
 	case $os in
 		# OpenBSD's wc prints whitespace before the output
@@ -431,7 +431,6 @@ get_palette() {
 	printf '\n' >&6
 	log "$palette
 		" " " >&6
-}
 
 main() {
 	[ "$1" = --version ] && {
