@@ -410,7 +410,9 @@ get_shell() {
 
 get_editor() {
 	#display VISUAL then EDITOR
-	log editor "${VISUAL:-$EDITOR}" >&6
+	editor=${VISUAL:-"$EDITOR"}
+
+	log editor "${editor##*/}" >&6
 }
 
 get_palette() {
