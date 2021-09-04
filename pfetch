@@ -59,8 +59,9 @@ log() {
 	# End here if no data was found.
 	[ "$2" ] || return
 
-	# Store the value of '$1' as we reset the argument list below.
+	# Store the values of '$1' and '$3' as we reset the argument list below.
 	name=$1
+	use_seperator=$3
 
 	# Use 'set --' as a means of stripping all leading and trailing
 	# white-space from the info string. This also normalizes all
@@ -77,8 +78,8 @@ log() {
 	printf '%s' "$name"
 	esc_p SGR 0
 
-	# Print the info name and info data separator.
-	printf %s "$PF_SEP"
+	# Print the info name and info data separator, if applicable.
+	[ "$use_seperator" ] || printf %s "$PF_SEP"
 
 	# Move the cursor backward the length of the *current* info name and
 	# then move it forwards the length of the *longest* info name. This
@@ -429,10 +430,10 @@ get_palette() {
 		palette="$palette$e"
 	}
 
-	# Print the palette with a new-line before and afterwards.
+	# Print the palette with a new-line before and afterwards but no seperator.
 	printf '\n' >&6
 	log "$palette
-		" " " >&6
+		" " " " " >&6
 
 main() {
 	[ "$1" = --version ] && {
