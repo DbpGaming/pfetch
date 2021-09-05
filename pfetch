@@ -273,6 +273,7 @@ get_pkgs() {
 				has pacman-key && pacman -Qq
 				has dpkg	   && dpkg-query -f '.\n' -W
 				has rpm		&& rpm -qa
+				has apk        && apk info
 				has emerge	 && printf '%s\n' /var/db/pkg/*/*/
 			;;
 
