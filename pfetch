@@ -270,11 +270,11 @@ get_pkgs() {
 		case $os in
 			(Linux*)
 				# Commands which print packages one per line.
-				has pacman-key && pacman -Qq
-				has dpkg	   && dpkg-query -f '.\n' -W
-				has rpm		&& rpm -qa
-				has apk        && apk info
-				has emerge	 && printf '%s\n' /var/db/pkg/*/*/
+				has pacman-key	&& pacman -Qq
+				has dpkg		&& dpkg-query -f '.\n' -W
+				has rpm			&& rpm -qa
+				has apk			&& apk info
+				has emerge		&& printf '%s\n' /var/db/pkg/*/*/
 			;;
 
 			(FreeBSD*)
